@@ -2,7 +2,7 @@
 
 **Kozy** is a web-based study companion designed for JEE preparation. It helps students track study time, manage tasks, monitor syllabus progress, visualize study patterns, and keep track of upcoming exams — all in one place.
 
-🔗 **Live Demo:** *[(https://sdm2007.github.io/kozy/)]*
+🔗 **Live Demo:** *[https://sdm2007.github.io/kozy/]*
 
 ---
 
