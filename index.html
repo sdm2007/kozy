@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3B6E5C">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Kozy — a simple JEE study companion for tracking study time, tasks, syllabus progress, reports, and exams.">
+<title>Kozy — JEE study companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#F1EFE7; --surface:#FFFFFF; --surface2:#E9E6D9; --border:#DEDACA;
+    --ink:#211F19; --ink-soft:#6C6759; --ink-faint:#9A9484;
+    --accent:#3B6E5C; --accent-ink:#FFFFFF; --accent-tint:#DCE9E2;
+    --amber:#C8842C; --amber-tint:#F2E2C9;
+    --danger:#B14338; --danger-tint:#F1DAD6;
+    --success:#3B6E5C; --success-tint:#DCE9E2;
+    --shadow: 0 20px 40px -28px rgba(33,31,25,0.35);
+  }
+  [data-theme="dark"]{
+    --bg:#151815; --surface:#1E2320; --surface2:#262C27; --border:#333A33;
+    --ink:#EEEDE6; --ink-soft:#A3AA9F; --ink-faint:#767D73;
+    --accent:#5FA98D; --accent-ink:#0F1512; --accent-tint:#233530;
+    --amber:#E3A24C; --amber-tint:#3A2E1A;
+    --danger:#E0776B; --danger-tint:#3A2320;
+    --success:#5FA98D; --success-tint:#1F332C;
+    --shadow: 0 20px 40px -28px rgba(0,0,0,0.6);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;}
+  h1,h2,h3,.brand,.stat-num,.timer-display{font-family:'Sora',sans-serif;}
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:222px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .2s ease;flex-shrink:0;}
+  .sidebar.collapsed{width:68px;}
+  .brand-row{display:flex;align-items:center;justify-content:space-between;padding:20px 18px;border-bottom:1px solid var(--border);}
+  .brand{font-weight:700;font-size:19px;letter-spacing:-0.01em;}
+  .brand .k{color:var(--accent);}
+  .collapse-btn{background:none;border:none;color:var(--ink-soft);cursor:pointer;padding:4px;display:flex;}
+  .sidebar.collapsed .brand-text, .sidebar.collapsed .nav-label{display:none;}
+  .nav{padding:12px;display:flex;flex-direction:column;gap:2px;flex:1;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:var(--ink-soft);text-decoration:none;cursor:pointer;font-size:14px;font-weight:500;border:none;background:none;width:100%;text-align:left;}
+  .nav-item svg{width:18px;height:18px;flex-shrink:0;}
+  .nav-item:hover{background:var(--surface2);color:var(--ink);}
+  .nav-item.active{background:var(--accent-tint);color:var(--accent);}
+  [data-theme="dark"] .nav-item.active{color:var(--accent);}
+  .sidebar-foot{padding:14px 18px;font-size:11.5px;color:var(--ink-faint);border-top:1px solid var(--border);}
+  .sidebar.collapsed .sidebar-foot{display:none;}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:20px 32px;border-bottom:1px solid var(--border);}
+  .page-title{font-size:21px;font-weight:600;margin:0;}
+  .theme-toggle{width:42px;height:24px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);position:relative;cursor:pointer;}
+  .theme-toggle .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--accent);transition:left .18s ease;}
+  [data-theme="dark"] .theme-toggle .knob{left:20px;}
+  .view{display:none;padding:28px 32px 60px;}
+  .view.active{display:block;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+  .card-label{font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;font-weight:500;}
+  .stat-num{font-size:26px;font-weight:700;}
+  .stat-sub{font-size:12.5px;color:var(--ink-faint);margin-top:4px;}
+
+  .goal-card{grid-column:span 2;}
+  .goal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .goal-edit{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);}
+  .goal-edit input{width:52px;border:1px solid var(--border);background:var(--surface2);color:var(--ink);border-radius:6px;padding:4px 6px;font-family:'Inter';font-size:12.5px;}
+  .bar-track{height:10px;background:var(--surface2);border-radius:8px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--accent);border-radius:8px;transition:width .3s ease;}
+  .streak-row{display:flex;gap:22px;margin-top:14px;}
+  .streak-item .num{font-size:19px;font-weight:700;color:var(--amber);}
+  .streak-item .lab{font-size:11.5px;color:var(--ink-soft);}
+
+  .timer-wrap{display:flex;flex-direction:column;align-items:center;padding:40px 0 10px;}
+  .timer-subject{width:260px;margin-bottom:24px;}
+  select, input, textarea{width:100%;border:1px solid var(--border);background:var(--surface2);color:var(--ink);border-radius:9px;padding:10px 12px;font-family:'Inter';font-size:14px;}
+  select:focus, input:focus, textarea:focus{outline:none;border-color:var(--accent);}
+  .timer-display{font-size:64px;font-weight:700;letter-spacing:-0.02em;margin-bottom:8px;}
+  .timer-status{font-size:13px;color:var(--ink-soft);margin-bottom:28px;}
+  .timer-controls{display:flex;gap:14px;}
+  .tbtn{width:56px;height:56px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);}
+  .tbtn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+  .tbtn:disabled{opacity:0.4;cursor:default;}
+  .today-total{margin-top:32px;font-size:13px;color:var(--ink-soft);}
+  .today-total b{color:var(--ink);}
+
+  .btn{border:none;border-radius:9px;padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;font-family:'Inter';}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--ink);}
+  .btn-danger-text{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:12px;}
+  .btn-danger-text:hover{color:var(--danger);}
+
+  .add-row{display:flex;gap:10px;margin-bottom:18px;}
+  .add-row input{flex:1;}
+  .todo-count{font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;}
+  .todo-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .todo-item:last-child{border-bottom:none;}
+  .todo-check{width:19px;height:19px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .todo-check.done{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+  .todo-text{flex:1;font-size:14px;}
+  .todo-text.done{color:var(--ink-faint);text-decoration:line-through;}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+  .empty p:first-child{font-family:'Sora',sans-serif;font-size:16px;color:var(--ink);margin-bottom:4px;font-weight:600;}
+
+  .tabs{display:flex;gap:6px;margin-bottom:22px;}
+  .tab-btn{border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  .tab-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .report-total{font-size:13px;color:var(--ink-soft);margin-bottom:18px;}
+  .report-total b{color:var(--ink);font-size:15px;}
+  .charts-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;}
+  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;}
+  .chart-card h3{margin:0 0 14px;font-size:14px;font-weight:600;}
+  .chart-box{position:relative;height:240px;}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);}
+  .legend-dot{width:9px;height:9px;border-radius:50%;}
+
+  .subj-add{display:flex;gap:10px;margin-bottom:20px;}
+  .subj-add input{flex:1;}
+  .overall{display:flex;align-items:center;gap:16px;margin-bottom:22px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;}
+  .overall .bar-track{flex:1;}
+  .overall .pct{font-weight:700;font-size:16px;min-width:48px;text-align:right;}
+  .subject-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden;}
+  .subject-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;}
+  .subject-head-left{flex:1;}
+  .subject-name{font-weight:600;font-size:15px;margin-bottom:8px;}
+  .subject-progress-row{display:flex;align-items:center;gap:10px;}
+  .subject-progress-row .bar-track{flex:1;}
+  .subject-progress-row .pct{font-size:12px;color:var(--ink-soft);min-width:32px;}
+  .chev{transition:transform .15s ease;color:var(--ink-faint);}
+  .chev.open{transform:rotate(180deg);}
+  .chapters{padding:0 20px 18px;display:none;}
+  .chapters.open{display:block;}
+  .chapter-add{display:flex;gap:8px;margin-bottom:12px;}
+  .chapter-add input{flex:1;}
+  .chapter-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid var(--border);}
+  .chapter-name{flex:1;font-size:13.5px;}
+  .chapter-name.done{color:var(--ink-faint);text-decoration:line-through;}
+  .chip{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);cursor:pointer;padding:4px 9px;border-radius:20px;border:1px solid var(--border);}
+  .chip.on{background:var(--success-tint);color:var(--success);border-color:transparent;}
+
+  .exam-add{display:grid;grid-template-columns:2fr 1.5fr 1fr auto;gap:10px;margin-bottom:24px;align-items:center;}
+  .exam-section-title{font-size:13px;font-weight:600;color:var(--ink-soft);margin:26px 0 10px;text-transform:none;}
+  .exam-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:10px;}
+  .exam-left .name{font-weight:600;font-size:14.5px;}
+  .exam-left .sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .exam-badge{font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;}
+  .exam-badge.urgent{background:var(--danger-tint);color:var(--danger);}
+  .exam-badge.soon{background:var(--amber-tint);color:var(--amber);}
+  .exam-badge.ok{background:var(--success-tint);color:var(--success);}
+  .exam-badge.past{background:var(--surface2);color:var(--ink-faint);}
+
+  .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth-card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px;box-shadow:var(--shadow);}
+  .auth-card h1{margin:0 0 8px;font-size:26px;}
+  .auth-card .auth-sub{color:var(--ink-soft);font-size:13px;line-height:1.55;margin:0 0 22px;}
+  .auth-form{display:flex;flex-direction:column;gap:10px;}
+  .auth-form label{font-size:12px;font-weight:600;color:var(--ink-soft);margin-top:4px;}
+  .auth-actions{display:flex;gap:10px;margin-top:8px;}
+  .auth-actions .btn{flex:1;}
+  .auth-message{font-size:12.5px;line-height:1.45;margin-top:14px;color:var(--ink-soft);min-height:18px;}
+  .auth-message.error{color:var(--danger);}
+  .auth-message.success{color:var(--success);}
+  .account-area{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-soft);}
+  .account-email{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:5px;}
+  .sync-dot.offline{background:var(--amber);}
+  .hidden{display:none !important;}
+  @media(max-width:700px){
+    .sidebar{width:68px;}
+    .sidebar .brand-text,.sidebar .nav-label,.sidebar .sidebar-foot{display:none;}
+    .brand-row{padding:20px 14px;justify-content:center;}
+    .nav{padding:12px 8px;}
+    .nav-item{justify-content:center;padding:10px 8px;}
+    .topbar{padding:16px 18px;}
+    .view{padding:22px 18px 50px;}
+    .charts-grid{grid-template-columns:1fr;}
+    .goal-card{grid-column:span 1;}
+    .exam-add{grid-template-columns:1fr;}
+    .account-email{max-width:120px;}
+    .timer-display{font-size:52px;}
+    .exam-row{align-items:flex-start;gap:12px;flex-direction:column;}
+    .exam-row > div:last-child{width:100%;justify-content:space-between;}
+    .chapter-row{align-items:flex-start;flex-wrap:wrap;}
+    .chapter-name{min-width:55%;}
+    .auth-overlay{padding:16px;}
+    .auth-card{padding:22px;}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="brand" style="font-size:22px;margin-bottom:18px;">Ko<span class="k">zy</span></div>
+    <h1 id="authTitle">Welcome to Kozy</h1>
+    <p class="auth-sub" id="authSubtitle">Sign in to keep your study data synced across browsers and devices.</p>
+    <form class="auth-form" onsubmit="handleAuthSubmit(event)">
+      <label for="authEmail">Email</label>
+      <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+      <label for="authPassword">Password</label>
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters" minlength="6" required>
+      <div class="auth-actions">
+        <button class="btn btn-primary" id="authSubmit" type="submit">Sign in</button>
+        <button class="btn btn-ghost" id="authToggle" type="button" onclick="toggleAuthMode()">Create account</button>
+      </div>
+    </form>
+    <div class="auth-message" id="authMessage"></div>
+  </div>
+</div>
+
+
+<div class="app">
+  <div class="sidebar" id="sidebar">
+    <div class="brand-row">
+      <div class="brand"><span class="brand-text">Ko<span class="k">zy</span></span></div>
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+    </div>
+    <nav class="nav" id="navList"></nav>
+    <div class="sidebar-foot">Built for JEE prep, one session at a time.</div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="account-area" id="accountArea">
+          <span class="sync-dot offline" id="syncDot"></span><span id="syncStatus">Local mode</span>
+          <span class="account-email" id="accountEmail"></span>
+          <button class="btn btn-ghost hidden" id="signOutBtn" onclick="signOutUser()">Sign out</button>
+        </div>
+        <div class="theme-toggle" onclick="toggleTheme()"><div class="knob"></div></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-dashboard">
+      <div class="grid" style="margin-bottom:16px;">
+        <div class="card">
+          <p class="card-label">Total study time</p>
+          <div class="stat-num" id="dashTotal">0h 0m</div>
+          <p class="stat-sub">All time, across every subject</p>
+        </div>
+        <div class="card">
+          <p class="card-label">Today</p>
+          <div class="stat-num" id="dashToday">0h 0m</div>
+          <p class="stat-sub" id="dashTodaySessions">0 sessions</p>
+        </div>
+        <div class="card">
+          <p class="card-label">Favorite subject</p>
+          <div class="stat-num" id="dashFav" style="font-size:20px;">—</div>
+          <p class="stat-sub" id="dashFavSub">Not enough data yet</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="card goal-card">
+          <div class="goal-head">
+            <p class="card-label" style="margin:0;">Today's goal</p>
+            <div class="goal-edit">Target <input type="number" min="0.5" step="0.5" id="goalInput" onchange="updateGoal(this.value)"> h/day</div>
+          </div>
+          <div class="bar-track" style="margin-bottom:8px;"><div class="bar-fill" id="goalBar"></div></div>
+          <p class="stat-sub" id="goalText"></p>
+          <div class="streak-row">
+            <div class="streak-item"><div class="num" id="streakCur">0</div><div class="lab">Current streak</div></div>
+            <div class="streak-item"><div class="num" id="streakBest">0</div><div class="lab">Best streak</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-timer">
+      <div class="timer-wrap">
+        <div class="timer-subject">
+          <select id="timerSubject"></select>
+        </div>
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+        <div class="timer-status" id="timerStatus">Pick a subject, then press play</div>
+        <div class="timer-controls">
+          <button class="tbtn primary" id="btnPlay" onclick="timerPlay()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="tbtn" id="btnPause" onclick="timerPause()" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+          </button>
+          <button class="tbtn" id="btnStop" onclick="timerStop()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+          </button>
+        </div>
+        <div class="today-total">Studied today: <b id="timerTodayTotal">0h 0m</b></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-todo">
+      <div class="add-row">
+        <input id="todoInput" placeholder="Revise rotational mechanics formulas" onkeydown="if(event.key==='Enter')addTodo()">
+        <button class="btn btn-primary" onclick="addTodo()">Add task</button>
+      </div>
+      <p class="todo-count" id="todoCount"></p>
+      <div id="todoList"></div>
+    </div>
+
+    <div class="view" id="view-reports">
+      <div class="tabs">
+        <button class="tab-btn" data-range="weekly" onclick="setReportRange('weekly')">Weekly</button>
+        <button class="tab-btn" data-range="monthly" onclick="setReportRange('monthly')">Monthly</button>
+        <button class="tab-btn" data-range="yearly" onclick="setReportRange('yearly')">Yearly</button>
+      </div>
+      <p class="report-total" id="reportTotal"></p>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Study minutes over time</h3>
+          <div class="chart-box"><canvas id="waveChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Time by subject</h3>
+          <div class="chart-box"><canvas id="pieChart"></canvas></div>
+          <div class="legend" id="pieLegend"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-syllabus">
+      <div class="overall">
+        <span class="card-label" style="margin:0;white-space:nowrap;">Overall completion</span>
+        <div class="bar-track"><div class="bar-fill" id="overallBar"></div></div>
+        <span class="pct" id="overallPct">0%</span>
+      </div>
+      <div class="subj-add">
+        <input id="subjectInput" placeholder="Add a subject, e.g. Physics" onkeydown="if(event.key==='Enter')addSubject()">
+        <button class="btn btn-primary" onclick="addSubject()">Add subject</button>
+      </div>
+      <div id="subjectList"></div>
+    </div>
+
+    <div class="view" id="view-exams">
+      <div class="exam-add">
+        <input id="examName" placeholder="Exam name, e.g. JEE Main Attempt 1">
+        <select id="examSubject"></select>
+        <input id="examDate" type="date">
+        <button class="btn btn-primary" onclick="addExam()">Add exam</button>
+      </div>
+      <div id="examUpcomingTitle" class="exam-section-title" style="display:none;">Upcoming</div>
+      <div id="examUpcoming"></div>
+      <div id="examPastTitle" class="exam-section-title" style="display:none;">Past</div>
+      <div id="examPast"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const NAV_ITEMS = [
+  {id:'dashboard', label:'Dashboard', icon:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 11h7v9h-7zM4 14h7v6H4z"/>'},
+  {id:'timer', label:'Study Timer', icon:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/>'},
+  {id:'todo', label:'To-Do List', icon:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l2.5 2.5L16 9"/>'},
+  {id:'reports', label:'Reports', icon:'<path d="M4 20V10M11 20V4M18 20v-7"/>'},
+  {id:'syllabus', label:'Syllabus', icon:'<path d="M5 4h11a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2z"/>'},
+  {id:'exams', label:'Exams', icon:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/>'},
+];
+
+let state = {
+  subjects: [],
+  sessions: [],
+  todos: [],
+  exams: [],
+  goalHours: 4,
+  darkMode: false,
+  sidebarCollapsed: false,
+  activeView: 'dashboard'
+};
+
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+const SUPABASE_PUBLISHABLE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY';
+const CLOUD_TABLE = 'kozy_state';
+
+let supabaseClient = null;
+let currentUser = null;
+let authMode = 'signin';
+let saveTimer = null;
+let cloudSaveTimer = null;
+let cloudConfigured = false;
+
+function isSupabaseConfigured(){
+  return SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+    SUPABASE_PUBLISHABLE_KEY && !SUPABASE_PUBLISHABLE_KEY.includes('YOUR_SUPABASE');
+}
+function initSupabase(){
+  if(!isSupabaseConfigured() || !window.supabase?.createClient) return false;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+  });
+  cloudConfigured = true;
+  supabaseClient.auth.onAuthStateChange((_event, session)=>{ currentUser=session?.user||null; updateAccountUI(); });
+  return true;
+}
+function cacheKey(userId){ return userId ? `kozy-state-${userId}` : 'kozy-state-local'; }
+function cacheState(userId){ try{localStorage.setItem(cacheKey(userId),JSON.stringify(state));}catch(e){console.error('cache failed',e);} }
+function readCachedState(userId){ try{const raw=localStorage.getItem(cacheKey(userId));return raw?JSON.parse(raw):null;}catch(e){return null;} }
+function mergeState(loaded){ if(loaded && typeof loaded==='object') state=Object.assign(state,loaded); }
+function saveState(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    cacheState(currentUser?.id||null);
+    if(currentUser && supabaseClient) scheduleCloudSave();
+  },200);
+}
+function scheduleCloudSave(){ clearTimeout(cloudSaveTimer); cloudSaveTimer=setTimeout(saveStateToCloud,350); }
+async function saveStateToCloud(){
+  if(!currentUser||!supabaseClient) return;
+  try{
+    const {error}=await supabaseClient.from(CLOUD_TABLE).upsert(
+      {user_id:currentUser.id,state,updated_at:new Date().toISOString()},
+      {onConflict:'user_id'}
+    );
+    if(error) throw error;
+    setSyncStatus('Synced',false);
+  }catch(e){console.error('cloud save failed',e);setSyncStatus('Sync failed — using local cache',true);}
+}
+async function loadState(){
+  const cached=readCachedState(currentUser?.id||null);
+  if(cached) mergeState(cached);
+  if(!currentUser||!supabaseClient) return;
+  try{
+    setSyncStatus('Syncing…',false);
+    const {data,error}=await supabaseClient.from(CLOUD_TABLE).select('state,updated_at').eq('user_id',currentUser.id).maybeSingle();
+    if(error) throw error;
+    if(data?.state){ mergeState(data.state); cacheState(currentUser.id); }
+    else if(cached){ await saveStateToCloud(); }
+    setSyncStatus('Synced',false);
+  }catch(e){console.error('cloud load failed',e);setSyncStatus('Offline — using local cache',true);}
+}
+function setSyncStatus(text,offline){
+  const status=document.getElementById('syncStatus'),dot=document.getElementById('syncDot');
+  if(status) status.textContent=text; if(dot) dot.classList.toggle('offline',!!offline);
+}
+function updateAccountUI(){
+  const email=document.getElementById('accountEmail'),signOut=document.getElementById('signOutBtn');
+  if(currentUser){if(email)email.textContent=currentUser.email||'';if(signOut)signOut.classList.remove('hidden');setSyncStatus('Cloud sync',false);}
+  else{if(email)email.textContent='';if(signOut)signOut.classList.add('hidden');setSyncStatus(cloudConfigured?'Not signed in':'Local mode',!cloudConfigured);}
+}
+function showAuth(){document.getElementById('authOverlay').classList.remove('hidden');}
+function hideAuth(){document.getElementById('authOverlay').classList.add('hidden');}
+function toggleAuthMode(){
+  authMode=authMode==='signin'?'signup':'signin';
+  document.getElementById('authTitle').textContent=authMode==='signin'?'Welcome back':'Create your Kozy account';
+  document.getElementById('authSubtitle').textContent=authMode==='signin'?'Sign in to keep your study data synced across browsers and devices.':'Create an account so your Kozy data follows you everywhere.';
+  document.getElementById('authSubmit').textContent=authMode==='signin'?'Sign in':'Create account';
+  document.getElementById('authToggle').textContent=authMode==='signin'?'Create account':'I already have an account';
+  document.getElementById('authPassword').autocomplete=authMode==='signin'?'current-password':'new-password';
+  setAuthMessage('');
+}
+function setAuthMessage(text,type=''){const el=document.getElementById('authMessage');if(!el)return;el.textContent=text;el.className='auth-message'+(type?' '+type:'');}
+async function handleAuthSubmit(event){
+  event.preventDefault();
+  if(!supabaseClient){setAuthMessage('Add your Supabase URL and publishable key in this file first.','error');return;}
+  const email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value,submit=document.getElementById('authSubmit');
+  submit.disabled=true;setAuthMessage(authMode==='signin'?'Signing in…':'Creating your account…');
+  try{
+    const result=authMode==='signin'
+      ? await supabaseClient.auth.signInWithPassword({email,password})
+      : await supabaseClient.auth.signUp({email,password});
+    if(result.error) throw result.error;
+    if(authMode==='signup'&&!result.data.session){setAuthMessage('Account created. Check your email to confirm it, then sign in.','success');}
+    else{currentUser=result.data.user;await loadState();hideAuth();renderAll();updateAccountUI();}
+  }catch(e){setAuthMessage(e.message||'Authentication failed.','error');}
+  finally{submit.disabled=false;}
+}
+async function signOutUser(){
+  if(supabaseClient&&currentUser) await saveStateToCloud();
+  if(supabaseClient) await supabaseClient.auth.signOut();
+  currentUser=null;
+  state={subjects:[],sessions:[],todos:[],exams:[],goalHours:4,darkMode:false,sidebarCollapsed:false,activeView:'dashboard'};
+  if(cloudConfigured){showAuth();setAuthMessage('You have been signed out.');}
+  updateAccountUI();renderAll();
+}
+function renderAll(){
+  document.documentElement.setAttribute('data-theme',state.darkMode?'dark':'light');
+  document.getElementById('sidebar').classList.toggle('collapsed',state.sidebarCollapsed);
+  buildNav();showView(state.activeView||'dashboard');
+}
+
+function escapeHTML(value){
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[ch]));
+}
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayKey(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function fmtHM(mins){
+  mins = Math.round(mins);
+  const h = Math.floor(mins/60), m = mins%60;
+  return h>0 ? `${h}h ${m}m` : `${m}m`;
+}
+function allSubjectNames(){ return state.subjects.map(s=>s.name); }
+
+function buildNav(){
+  const el = document.getElementById('navList');
+  el.innerHTML = NAV_ITEMS.map(n => `
+    <button class="nav-item ${state.activeView===n.id?'active':''}" onclick="showView('${n.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${n.icon}</svg>
+      <span class="nav-label">${n.label}</span>
+    </button>
+  `).join('');
+}
+
+function toggleSidebar(){
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', state.sidebarCollapsed);
+  saveState();
+}
+
+function toggleTheme(){
+  state.darkMode = !state.darkMode;
+  document.documentElement.setAttribute('data-theme', state.darkMode?'dark':'light');
+  saveState();
+  if(state.activeView==='reports') renderReports();
+}
+
+const titles = {dashboard:'Dashboard', timer:'Study Timer', todo:'To-Do List', reports:'Study Reports', syllabus:'Syllabus Tracker', exams:'Exam Tracker'};
+function showView(id){
+  state.activeView = id;
+  NAV_ITEMS.forEach(n=>document.getElementById('view-'+n.id).classList.toggle('active', n.id===id));
+  buildNav();
+  document.getElementById('pageTitle').textContent = titles[id];
+  if(id==='dashboard') renderDashboard();
+  if(id==='timer') renderTimerSubjects();
+  if(id==='todo') renderTodos();
+  if(id==='reports') renderReports();
+  if(id==='syllabus') renderSyllabus();
+  if(id==='exams') renderExams();
+  saveState();
+}
+
+function computeStreaks(){
+  const days = [...new Set(state.sessions.map(s=>s.date))].sort();
+  if(days.length===0) return {current:0, best:0};
+  const daySet = new Set(days);
+  let best = 0, run = 0, prev = null;
+  days.forEach(d=>{
+    if(prev){
+      const diff = (new Date(d) - new Date(prev)) / 86400000;
+      run = diff===1 ? run+1 : 1;
+    } else { run = 1; }
+    best = Math.max(best, run);
+    prev = d;
+  });
+  let current = 0;
+  let cursor = new Date();
+  if(!daySet.has(todayKey())) cursor.setDate(cursor.getDate()-1);
+  while(daySet.has(`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}-${String(cursor.getDate()).padStart(2,'0')}`)){
+    current++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  return {current, best};
+}
+
+function renderDashboard(){
+  const totalMin = state.sessions.reduce((a,s)=>a+s.durationMin,0);
+  document.getElementById('dashTotal').textContent = fmtHM(totalMin);
+  const today = state.sessions.filter(s=>s.date===todayKey());
+  const todayMin = today.reduce((a,s)=>a+s.durationMin,0);
+  document.getElementById('dashToday').textContent = fmtHM(todayMin);
+  document.getElementById('dashTodaySessions').textContent = `${today.length} session${today.length===1?'':'s'}`;
+
+  const bySubject = {};
+  state.sessions.forEach(s=>{ bySubject[s.subjectName] = (bySubject[s.subjectName]||0) + s.durationMin; });
+  const fav = Object.entries(bySubject).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('dashFav').textContent = fav ? fav[0] : '—';
+  document.getElementById('dashFavSub').textContent = fav ? `${fmtHM(fav[1])} logged` : 'Not enough data yet';
+
+  document.getElementById('goalInput').value = state.goalHours;
+  const goalMin = state.goalHours*60;
+  const pct = Math.min(100, Math.round((todayMin/goalMin)*100));
+  document.getElementById('goalBar').style.width = pct+'%';
+  document.getElementById('goalText').textContent = `${fmtHM(todayMin)} of ${state.goalHours}h target`;
+
+  const streaks = computeStreaks();
+  document.getElementById('streakCur').textContent = streaks.current;
+  document.getElementById('streakBest').textContent = streaks.best;
+}
+
+function updateGoal(v){
+  const n = parseFloat(v);
+  state.goalHours = n>0 ? n : 1;
+  saveState();
+  renderDashboard();
+}
+
+let timerState = {running:false, elapsedSec:0, subjectName:null, intervalId:null};
+function renderTimerSubjects(){
+  const sel = document.getElementById('timerSubject');
+  const names = allSubjectNames();
+  sel.innerHTML = names.length
+    ? names.map(n=>`<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('')
+    : `<option value="">Add a subject in Syllabus first</option>`;
+  updateTodayTotalTimer();
+}
+function updateTodayTotalTimer(){
+  const todayMin = state.sessions.filter(s=>s.date===todayKey()).reduce((a,s)=>a+s.durationMin,0);
+  document.getElementById('timerTodayTotal').textContent = fmtHM(todayMin);
+}
+function fmtClock(sec){
+  const h = String(Math.floor(sec/3600)).padStart(2,'0');
+  const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
+  const s = String(Math.floor(sec%60)).padStart(2,'0');
+  return `${h}:${m}:${s}`;
+}
+function timerPlay(){
+  if(allSubjectNames().length===0){ alert('Add a subject in the Syllabus tab first.'); return; }
+  timerState.subjectName = document.getElementById('timerSubject').value;
+  timerState.running = true;
+  document.getElementById('btnPlay').disabled = true;
+  document.getElementById('btnPause').disabled = false;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('timerStatus').textContent = `Studying ${timerState.subjectName}`;
+  document.getElementById('timerSubject').disabled = true;
+  timerState.intervalId = setInterval(()=>{
+    timerState.elapsedSec++;
+    document.getElementById('timerDisplay').textContent = fmtClock(timerState.elapsedSec);
+  }, 1000);
+}
+function timerPause(){
+  timerState.running = false;
+  clearInterval(timerState.intervalId);
+  document.getElementById('btnPlay').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  document.getElementById('timerStatus').textContent = 'Paused — press play to resume';
+}
+function timerStop(){
+  clearInterval(timerState.intervalId);
+  if(timerState.elapsedSec >= 5){
+    state.sessions.push({
+      id: uid(),
+      subjectName: timerState.subjectName,
+      date: todayKey(),
+      durationMin: Math.round(timerState.elapsedSec/60*10)/10
+    });
+    saveState();
+  }
+  timerState = {running:false, elapsedSec:0, subjectName:null, intervalId:null};
+  document.getElementById('timerDisplay').textContent = '00:00:00';
+  document.getElementById('timerStatus').textContent = 'Pick a subject, then press play';
+  document.getElementById('btnPlay').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('timerSubject').disabled = false;
+  updateTodayTotalTimer();
+}
+
+function addTodo(){
+  const inp = document.getElementById('todoInput');
+  const text = inp.value.trim();
+  if(!text) return;
+  state.todos.unshift({id:uid(), text, done:false});
+  inp.value = '';
+  saveState();
+  renderTodos();
+}
+function toggleTodo(id){
+  const t = state.todos.find(x=>x.id===id);
+  if(t){ t.done = !t.done; saveState(); renderTodos(); }
+}
+function deleteTodo(id){
+  state.todos = state.todos.filter(x=>x.id!==id);
+  saveState();
+  renderTodos();
+}
+function renderTodos(){
+  const done = state.todos.filter(t=>t.done).length;
+  document.getElementById('todoCount').textContent = state.todos.length
+    ? `${done} of ${state.todos.length} completed`
+    : '';
+  const el = document.getElementById('todoList');
+  if(state.todos.length===0){
+    el.innerHTML = '<div class="empty"><p>No tasks yet</p><p>Add your first study task above.</p></div>';
+    return;
+  }
+  el.innerHTML = state.todos.map(t=>`
+    <div class="todo-item">
+      <div class="todo-check ${t.done?'done':''}" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</div>
+      <div class="todo-text ${t.done?'done':''}">${escapeHTML(t.text)}</div>
+      <button class="btn-danger-text" onclick="deleteTodo('${t.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+
+let reportRange = 'weekly';
+let waveChartInstance = null, pieChartInstance = null;
+const PALETTE = ['#3B6E5C','#C8842C','#7B6BAE','#B14338','#4A87A8','#8A9A3C'];
+
+function setReportRange(r){
+  reportRange = r;
+  renderReports();
+}
+function getRangeSessions(){
+  const now = new Date();
+  if(reportRange==='weekly'){
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-6);
+    return state.sessions.filter(s=>new Date(s.date) >= cutoff);
+  } else if(reportRange==='monthly'){
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-29);
+    return state.sessions.filter(s=>new Date(s.date) >= cutoff);
+  } else {
+    const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth()-11); cutoff.setDate(1);
+    return state.sessions.filter(s=>new Date(s.date) >= cutoff);
+  }
+}
+function getWaveData(){
+  const now = new Date();
+  let labels = [], values = [];
+  if(reportRange==='weekly'){
+    for(let i=6;i>=0;i--){
+      const d = new Date(now); d.setDate(d.getDate()-i);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      labels.push(d.toLocaleDateString(undefined,{weekday:'short'}));
+      values.push(state.sessions.filter(s=>s.date===key).reduce((a,s)=>a+s.durationMin,0));
+    }
+  } else if(reportRange==='monthly'){
+    for(let i=29;i>=0;i--){
+      const d = new Date(now); d.setDate(d.getDate()-i);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      labels.push(i%5===0 ? d.getDate().toString() : '');
+      values.push(state.sessions.filter(s=>s.date===key).reduce((a,s)=>a+s.durationMin,0));
+    }
+  } else {
+    for(let i=11;i>=0;i--){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const monthKey = d.getMonth(), yearKey = d.getFullYear();
+      labels.push(d.toLocaleDateString(undefined,{month:'short'}));
+      const sum = state.sessions.filter(s=>{
+        const sd = new Date(s.date);
+        return sd.getMonth()===monthKey && sd.getFullYear()===yearKey;
+      }).reduce((a,s)=>a+s.durationMin,0);
+      values.push(sum);
+    }
+  }
+  return {labels, values};
+}
+function renderReports(){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.range===reportRange));
+  const rangeSessions = getRangeSessions();
+  const totalMin = rangeSessions.reduce((a,s)=>a+s.durationMin,0);
+  const label = reportRange==='weekly'?'this week':reportRange==='monthly'?'this month':'this year';
+  document.getElementById('reportTotal').innerHTML = `<b>${fmtHM(totalMin)}</b> studied ${label}`;
+
+  const style = getComputedStyle(document.documentElement);
+  const gridColor = style.getPropertyValue('--border').trim();
+  const textColor = style.getPropertyValue('--ink-soft').trim();
+  const accent = style.getPropertyValue('--accent').trim();
+
+  const {labels, values} = getWaveData();
+  if(waveChartInstance) waveChartInstance.destroy();
+  waveChartInstance = new Chart(document.getElementById('waveChart'), {
+    type:'line',
+    data:{ labels, datasets:[{ data: values, borderColor: accent, backgroundColor: accent+'33', fill:true, tension:0.4, pointRadius:0, borderWidth:2 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false}, ticks:{color:textColor, font:{size:11}}},
+        y:{grid:{color:gridColor}, ticks:{color:textColor, font:{size:11}}, beginAtZero:true}
+      }
+    }
+  });
+
+  const bySubject = {};
+  rangeSessions.forEach(s=>{ bySubject[s.subjectName] = (bySubject[s.subjectName]||0) + s.durationMin; });
+  const entries = Object.entries(bySubject).sort((a,b)=>b[1]-a[1]);
+  if(pieChartInstance) pieChartInstance.destroy();
+  const pieBox = document.getElementById('pieChart').parentElement;
+  if(entries.length===0){
+    pieBox.innerHTML = '<canvas id="pieChart"></canvas>';
+    document.getElementById('pieLegend').innerHTML = '<span style="font-size:12px;color:var(--ink-faint);">No sessions logged in this period yet.</span>';
+  } else {
+    pieChartInstance = new Chart(document.getElementById('pieChart'), {
+      type:'doughnut',
+      data:{ labels: entries.map(e=>e[0]), datasets:[{ data: entries.map(e=>Math.round(e[1])), backgroundColor: entries.map((_,i)=>PALETTE[i%PALETTE.length]), borderWidth:0 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+    document.getElementById('pieLegend').innerHTML = entries.map((e,i)=>`
+      <div class="legend-item"><span class="legend-dot" style="background:${PALETTE[i%PALETTE.length]}"></span>${escapeHTML(e[0])} · ${fmtHM(e[1])}</div>
+    `).join('');
+  }
+}
+
+function addSubject(){
+  const inp = document.getElementById('subjectInput');
+  const name = inp.value.trim();
+  if(!name) return;
+  state.subjects.push({id:uid(), name, chapters:[], open:true});
+  inp.value = '';
+  saveState();
+  renderSyllabus();
+}
+function addChapter(subjId){
+  const inp = document.getElementById('chapterInput-'+subjId);
+  const name = inp.value.trim();
+  if(!name) return;
+  const subj = state.subjects.find(s=>s.id===subjId);
+  subj.chapters.push({id:uid(), name, theory:false, practice:false, revision:false});
+  inp.value = '';
+  saveState();
+  renderSyllabus();
+}
+function toggleChapterPart(subjId, chapId, part){
+  const subj = state.subjects.find(s=>s.id===subjId);
+  const chap = subj.chapters.find(c=>c.id===chapId);
+  chap[part] = !chap[part];
+  saveState();
+  renderSyllabus();
+}
+function toggleSubjectOpen(subjId){
+  const subj = state.subjects.find(s=>s.id===subjId);
+  subj.open = !subj.open;
+  saveState();
+  renderSyllabus();
+}
+function subjectProgress(subj){
+  if(subj.chapters.length===0) return 0;
+  const done = subj.chapters.filter(c=>c.theory&&c.practice&&c.revision).length;
+  return Math.round((done/subj.chapters.length)*100);
+}
+function renderSyllabus(){
+  const totalChapters = state.subjects.reduce((a,s)=>a+s.chapters.length,0);
+  const doneChapters = state.subjects.reduce((a,s)=>a+s.chapters.filter(c=>c.theory&&c.practice&&c.revision).length,0);
+  const overall = totalChapters ? Math.round((doneChapters/totalChapters)*100) : 0;
+  document.getElementById('overallBar').style.width = overall+'%';
+  document.getElementById('overallPct').textContent = overall+'%';
+
+  const el = document.getElementById('subjectList');
+  if(state.subjects.length===0){
+    el.innerHTML = '<div class="empty"><p>No subjects yet</p><p>Add a subject above to start tracking chapters.</p></div>';
+    return;
+  }
+  el.innerHTML = state.subjects.map(subj => {
+    const pct = subjectProgress(subj);
+    return `
+    <div class="subject-card">
+      <div class="subject-head" onclick="toggleSubjectOpen('${subj.id}')">
+        <div class="subject-head-left">
+          <div class="subject-name">${escapeHTML(subj.name)}</div>
+          <div class="subject-progress-row">
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <span class="pct">${pct}%</span>
+          </div>
+        </div>
+        <svg class="chev ${subj.open?'open':''}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="chapters ${subj.open?'open':''}">
+        <div class="chapter-add">
+          <input id="chapterInput-${subj.id}" placeholder="Add a chapter" onkeydown="if(event.key==='Enter')addChapter('${subj.id}')">
+          <button class="btn btn-ghost" onclick="addChapter('${subj.id}')">Add</button>
+        </div>
+        ${subj.chapters.length===0 ? '<p style="font-size:12.5px;color:var(--ink-faint);padding:8px 0;">No chapters yet.</p>' : subj.chapters.map(c=>{
+          const complete = c.theory && c.practice && c.revision;
+          return `
+          <div class="chapter-row">
+            <div class="chapter-name ${complete?'done':''}">${escapeHTML(c.name)}</div>
+            <div class="chip ${c.theory?'on':''}" onclick="toggleChapterPart('${subj.id}','${c.id}','theory')">Theory</div>
+            <div class="chip ${c.practice?'on':''}" onclick="toggleChapterPart('${subj.id}','${c.id}','practice')">Practice</div>
+            <div class="chip ${c.revision?'on':''}" onclick="toggleChapterPart('${subj.id}','${c.id}','revision')">Revision</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function daysRemaining(dateStr){
+  const today = new Date(todayKey());
+  const target = new Date(dateStr);
+  return Math.round((target-today)/86400000);
+}
+function addExam(){
+  const name = document.getElementById('examName').value.trim();
+  const subject = document.getElementById('examSubject').value;
+  const date = document.getElementById('examDate').value;
+  if(!name || !date){ alert('Add an exam name and date.'); return; }
+  state.exams.push({id:uid(), name, subject, date});
+  document.getElementById('examName').value = '';
+  document.getElementById('examDate').value = '';
+  saveState();
+  renderExams();
+}
+function deleteExam(id){
+  state.exams = state.exams.filter(e=>e.id!==id);
+  saveState();
+  renderExams();
+}
+function renderExams(){
+  const sel = document.getElementById('examSubject');
+  const names = allSubjectNames();
+  sel.innerHTML = names.length
+    ? names.map(n=>`<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('')
+    : `<option value="">General</option>`;
+
+  const upcoming = state.exams.filter(e=>daysRemaining(e.date)>=0).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const past = state.exams.filter(e=>daysRemaining(e.date)<0).sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  document.getElementById('examUpcomingTitle').style.display = upcoming.length ? 'block' : 'none';
+  document.getElementById('examPastTitle').style.display = past.length ? 'block' : 'none';
+
+  function badge(days){
+    if(days<=7) return `<span class="exam-badge urgent">${days} day${days===1?'':'s'} left</span>`;
+    if(days<=30) return `<span class="exam-badge soon">${days} days left</span>`;
+    return `<span class="exam-badge ok">${days} days left</span>`;
+  }
+  document.getElementById('examUpcoming').innerHTML = upcoming.map(e=>`
+    <div class="exam-row">
+      <div class="exam-left"><div class="name">${escapeHTML(e.name)}</div><div class="sub">${escapeHTML(e.subject)} · ${new Date(e.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}</div></div>
+      <div style="display:flex;align-items:center;gap:10px;">${badge(daysRemaining(e.date))}<button class="btn-danger-text" onclick="deleteExam('${e.id}')">Remove</button></div>
+    </div>
+  `).join('') || (upcoming.length===0 && past.length===0 ? '<div class="empty"><p>No exams yet</p><p>Add one above to start tracking the countdown.</p></div>' : '');
+  document.getElementById('examPast').innerHTML = past.map(e=>`
+    <div class="exam-row">
+      <div class="exam-left"><div class="name">${escapeHTML(e.name)}</div><div class="sub">${escapeHTML(e.subject)} · ${new Date(e.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}</div></div>
+      <div style="display:flex;align-items:center;gap:10px;"><span class="exam-badge past">Passed</span><button class="btn-danger-text" onclick="deleteExam('${e.id}')">Remove</button></div>
+    </div>
+  `).join('');
+}
+
+async function init(){
+  const configured=initSupabase();
+  updateAccountUI();
+  if(configured){
+    const {data}=await supabaseClient.auth.getSession();
+    currentUser=data?.session?.user||null;
+    updateAccountUI();
+    if(!currentUser){showAuth();return;}
+  }
+  await loadState();
+  hideAuth();
+  renderAll();
+  updateAccountUI();
+}
+init();
+</script>
+
+</body>
+</html>
