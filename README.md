@@ -91,42 +91,6 @@ This project is also a record of my early journey into software development and 
 
 ---
 
-## 🚀 Getting Started
-
-### Clone the repository
-
-```bash
-git clone https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
-cd YOUR-REPOSITORY
-```
-
-### Run locally
-
-This project is primarily client-side, so it can be opened using a local development server.
-
-For example, with VS Code and the Live Server extension:
-
-```text
-Open index.html → Run with Live Server
-```
-
-If you use Supabase authentication/database functionality, configure the required Supabase credentials in the project before running the application.
-
----
-
-## 📁 Project Structure
-
-```text
-Kozy/
-│
-├── index.html
-└── README.md
-```
-
-The current version keeps the application's frontend logic, styling, and markup in a single HTML file.
-
----
-
 ## ⚠️ Current Limitations
 
 Kozy is an early-stage personal project and is still under development.
