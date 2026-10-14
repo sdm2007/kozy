@@ -1,0 +1,19 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # 1. Automatic timer trigger
+    - cron: '0 0 */5 * *'
+  # 2. Manual trigger
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        # 3. Sends an HTTP request to your database
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            https://tvshnykpapajqgufsfgo.supabase.co/rest/v1/
